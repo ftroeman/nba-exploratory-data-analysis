@@ -1,0 +1,162 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(plyr)
+library(dplyr)
+```
+
+```{r}
+odds <- read.table('tidy.csv', header=TRUE, sep=',')
+odds[odds$V == 'Seattle',]$V <- 'OklahomaCity'
+odds[odds$H == 'Seattle',]$H <- 'OklahomaCity'
+```
+
+```{r}
+head(odds)
+```
+
+```{r}
+df <- data.frame('Index'=1:(nrow(odds) * 2), 'Team'=0, 'Date'=as.Date('2000-01-01'), 'ML'=0, 'SpreadOpen'=0, 'SpreadClose'=0, 'OverOpen'=0, 'UnderOpen'=0, 'OverClose'=0, 'UnderClose'=0, 'Spread2H'=0, 'Over2H'=0, 'Under2H'=0)
+df$Team <- as.character(df$Team)
+```
+
+
+```{r}
+for (row in 1:nrow(odds)){
+  df$Team[row * 2] <- as.character(odds$V[row])
+  df$Team[row * 2 - 1] <- as.character(odds$H[row])
+  df$Date[row * 2] <- as.Date(odds$Date[row])
+  df$Date[row * 2 - 1] <- as.Date(odds$Date[row])
+}
+```
+
+```{r}
+for (row in 1:nrow(odds)){
+  if (odds$HF[row] > odds$VF[row]){
+    df$ML[row*2] <- -100
+    if (odds$HMoney[row] > 0){
+      df$ML[row*2-1] <- odds$HMoney[row]
+    } else {
+      df$ML[row*2-1] <- 100 / (-odds$HMoney[row]/100)
+    }
+  } else {
+    df$ML[row*2-1] <- -100
+    if (odds$VMoney[row] > 0){
+      df$ML[row*2] <- odds$VMoney[row]
+    } else {
+      df$ML[row*2] <- 100 / (-odds$VMoney[row]/100)
+    }
+  }
+}
+```
+
+```{r}
+for (row in 1:nrow(odds)) {
+  if (odds$VF[row] - odds$HF[row] < odds$HSpreadOpen[row]){
+    df$SpreadOpen[row*2-1] <- 100
+    df$SpreadOpen[row*2] <- -100
+  } else {
+    df$SpreadOpen[row*2-1] <- -100
+    df$SpreadOpen[row*2] <- 100
+  }
+
+  if (odds$VF[row] - odds$HF[row] < odds$HSpreadClose[row]){
+    df$SpreadClose[row*2-1] <- 100
+    df$SpreadClose[row*2] <- -100
+  } else {
+    df$SpreadClose[row*2-1] <- -100
+    df$SpreadClose[row*2] <- 100
+  }
+}
+```
+
+
+```{r}
+for (row in 1:nrow(odds)) {
+  score <- odds$HF[row] + odds$VF[row]
+  if (score > odds$OUOpen[row]) {
+    df$OverOpen[row*2-1] <- 100
+    df$OverOpen[row*2] <- 100
+    df$UnderOpen[row*2-1] <- -100
+    df$UnderOpen[row*2] <- -100
+  } else if (score < odds$OUOpen[row]) {
+    df$OverOpen[row*2-1] <- -100
+    df$OverOpen[row*2] <- -100
+    df$UnderOpen[row*2-1] <- 100
+    df$UnderOpen[row*2] <- 100
+  }
+}
+```
+
+```{r}
+for (row in 1:nrow(odds)) {
+  score <- odds$HF[row] + odds$VF[row]
+  if (score > odds$OUClose[row]) {
+    df$OverClose[row*2-1] <- 100
+    df$OverClose[row*2] <- 100
+    df$UnderClose[row*2-1] <- -100
+    df$UnderClose[row*2] <- -100
+  } else if (score < odds$OUClose[row]) {
+    df$OverClose[row*2-1] <- -100
+    df$OverClose[row*2] <- -100
+    df$UnderClose[row*2-1] <- 100
+    df$UnderClose[row*2] <- 100
+  }
+}
+```
+
+```{r}
+odds
+```
+
+
+```{r}
+for (row in 1:nrow(odds)) {
+  H2H <- odds$H3[row] + odds$H4[row]
+  V2H <- odds$V3[row] + odds$V4[row]
+  if (V2H - H2H < odds$HSpread2H[row]){
+    df$Spread2H[row*2-1] <- 100
+    df$Spread2H[row*2] <- -100
+  } else {
+    df$Spread2H[row*2-1] <- -100
+    df$Spread2H[row*2] <- 100
+  }
+}
+```
+
+```{r}
+for (row in 1:nrow(odds)) {
+  score2H <- odds$H3[row] + odds$H4[row] + odds$V3[row] + odds$V4[row]
+  if (score2H > odds$OU2H[row]) {
+    df$Over2H[row*2-1] <- 100
+    df$Over2H[row*2] <- 100
+    df$Under2H[row*2-1] <- -100
+    df$Under2H[row*2] <- -100
+  } else if (score2H < odds$OU2H[row]) {
+    df$Over2H[row*2-1] <- -100
+    df$Over2H[row*2] <- -100
+    df$Under2H[row*2-1] <- 100
+    df$Under2H[row*2] <- 100
+  }
+}
+df
+```
+
+```{r}
+for (team in unique(df$Team)){
+  file <- df[df$Team == team,]
+  file <- mutate(file, MLProfit=cumsum(ML), SpreadOpenProfit=cumsum(SpreadOpen), SpreadCloseProfit=cumsum(SpreadClose), OverOpenProfit=cumsum(OverOpen), UnderOpenProfit=cumsum(UnderOpen), OverCloseProfit=cumsum(OverClose), UnderCloseProfit=cumsum(UnderClose), Spread2HProfit=cumsum(Spread2H), Over2HProfit=cumsum(Over2H),
+                 Under2HProfit=cumsum(Under2H))
+  write.csv(file, paste0(team, '.csv'))
+}
+
+```
+
+
+

@@ -1,0 +1,242 @@
+---
+title: "GR5702 EDAV Fianl Project Over/Under & Spread Analysis"
+author: "Po-Chieh Liu (pl2441)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+```
+
+
+
+```{r}
+# generate total score and total 2H score
+library(tidyverse)
+tidy <- read_csv("../data/tidy.csv") %>% 
+  select(Date, SZN, V, H, V1, V2, V3, V4, H1, H2, H3, H4, VF, HF, OUOpen, OUClose, OU2H, VMoney, HMoney) %>% 
+  mutate(Total = VF+HF) %>% 
+  mutate(Total_2H = V3+V4+H3+H4) 
+```
+
+Chunk 1 plots the OUClose vs OU2H. The linearity is required for applying the betting decition based on OUClose and OUOpen.
+
+```{r}
+df <- tidy %>% select(OUClose, OU2H) %>% mutate(Ratio = OUClose / OU2H)
+
+ggplot(df, aes(x = OUClose, y = OU2H)) +
+  geom_point(alpha = 0.05) +
+  geom_smooth(se = FALSE) + #using method = 'loess'
+  geom_smooth(method = lm, se = FALSE, color = "red") + 
+  scale_x_continuous("House Over/Under Close Score", breaks = c(170, 180, 190, 200, 210, 220, 230, 240), labels = c("170", "180", "190", "200", "210", "220", "230", "240")) +
+  scale_y_continuous("House Over/Under 2nd Half Score", breaks = c(85,90,95,100,105,110,115,120), labels = c("85","90","95","100","105","110","115","120")) +
+  ggtitle("Over/Under Close Score VS. Over/Under 2nd Half Score")
+
+ggplot(df, aes(x = seq(1, length(tidy$OUClose)),y = OUClose/OU2H)) +
+  geom_point(alpha = 0.1) +
+  ggtitle("Ratio Over/Under Close Score and Over/Under 2nd Half Score") +
+  scale_x_continuous("Game Index", breaks = c(0, 2500, 5000, 7500, 10000, 12500), labels = c("0", "2500", "5000", "7500", "10000", "12500")) +
+  scale_y_continuous("OUClose/OU2H", breaks = c(1.9, 2.0 , 2.1 , 2.2), labels = c("1.9", "2.0" , "2.1" , "2.2")) +
+  geom_smooth(se = FALSE) + #using method = 'loess'
+  geom_smooth(method = lm, se = FALSE, color = "red") 
+```
+
+Chunk 2 plots the difference between OUClose and OUopen in three different ways, in order to find the proper decision scores for betting. 
+
+```{r}
+df <- tidy %>% 
+  select(OUOpen, OUClose) %>%
+  mutate(Diff = OUClose - OUOpen)
+
+ggplot(df, aes(x = Diff)) +
+  geom_histogram(binwidth = 0.5, fill='lightblue', color='black') +
+  xlab("Score Difference") + 
+  ylab("Counts") +
+  ggtitle("Over/Under Score Difference Histogram")
+
+ggplot(df, aes(y= Diff)) + 
+  geom_boxplot() +
+  scale_x_discrete() + 
+  ylab("Score Difference") +
+  ggtitle("Over/Under Score Difference Boxplot")
+  
+ggplot(df, aes(sample = Diff)) +
+  geom_qq() +
+  stat_qq_line(distribution = qnorm) +
+  xlab("Theoratical") +
+  ylab("Socre Difference") +
+  ggtitle("Score Difference QQ-Plot")
+```
+
+Chunk 3 applys previous plots results. For betting decision, if the score difference is between -1 to 1, skipping the game due to lack of information. For rest games, bet Under if the difference is negative, and bet Over if the difference is positive.
+
+```{r}
+df <- tidy %>% 
+  select(OUOpen, OUClose, Total, OU2H, Total_2H) %>%
+  mutate(Diff = OUClose-OUOpen) %>% 
+  mutate(Diff_dec_idx = 
+           cut(Diff,
+               breaks = c(-Inf, -5.51, -4.51, -3.51, -2.51, -1.51, -0.49, 0.49, 1.51, 2.51, 3.51, 4.51, 5.51, Inf), 
+               labels = c("<=-6","-5~-5.5","-4~-4.5", "-3~-3.5", "-2~-2.5", "-0.5~-1.5", "skip -1 to 1", "0.5~1.5", "2~2.5", "3~3.5","4~4.5", "5~5.5", ">=6"))) %>%
+  filter(!(Diff_dec_idx == "skip -1 to 1")) %>%
+  mutate(earning = if_else( (Total-OUClose)*(Diff)>0, 95, if_else(Total==OUClose, 0, -100) ) )
+
+df2 <- df %>%  group_by(Diff_dec_idx) %>% summarise(profit = sum(earning))
+
+ggplot(df2, aes(x=Diff_dec_idx, y = profit)) +
+  geom_bar(stat='identity') +
+  xlab("Score Difference") +
+  ylab("Profit ($)") + 
+  ggtitle("Placing Bet On Over OUClose if Score Difference is Positive, and Vice Versa")
+```
+
+Chunk 4 apply the same strategy for betting 2nd half game.
+
+```{r}
+df <- tidy %>% 
+  select(OUOpen, OUClose, Total, OU2H, Total_2H) %>%
+  mutate(Diff = OUClose-OUOpen) %>% 
+  mutate(Diff_dec_idx = 
+           cut(Diff,
+               breaks = c(-Inf, -5.51, -4.51, -3.51, -2.51, -1.51, -0.49, 0.49, 1.51, 2.51, 3.51, 4.51, 5.51, Inf), 
+               labels = c("<=-6","-5&-5.5","-4&-4.5", "-3&-3.5", "-2&-2.5", "-0.5&-1.5", "skip -1 to 1", "0.5&1.5", "2&2.5", "3&3.5","4&4.5", "5&5.5", ">=6"))) %>%
+  filter(!(Diff_dec_idx == "skip -1 to 1")) %>%
+  mutate(earning = if_else( (Total_2H-OU2H)*(Diff)>0, 95, if_else(Total_2H==OU2H, 0, -100) ) )
+
+df2 <- df %>%  group_by(Diff_dec_idx) %>% summarise(profit = sum(earning))
+
+ggplot(df2, aes(x=Diff_dec_idx, y = profit)) +
+  geom_bar(stat='identity') +
+  xlab("Score Difference") +
+  ylab("Profit ($)") + 
+  geom_text(aes(label = paste(profit), vjust=if_else(profit>0,-0.5,1))) +
+  ggtitle("Placing Bet On Over OU2H if Score Difference is Positive, and Vice Versa")
+```
+
+add color, add Gain variable (need a better variable name)
+
+```{r}
+df <- tidy %>% 
+  select(OUOpen, OUClose, Total, OU2H, Total_2H) %>%
+  mutate(Diff = OUClose-OUOpen) %>% 
+  mutate(Diff_dec_idx = 
+           cut(Diff,
+               breaks = c(-Inf, -5.51, -4.51, -3.51, -2.51, -1.51, -0.49, 0.49, 1.51, 2.51, 3.51, 4.51, 5.51, Inf), 
+               labels = c("<=-6","-5&-5.5","-4&-4.5", "-3&-3.5", "-2&-2.5", "-0.5&-1.5", "skip -1 to 1", "0.5&1.5", "2&2.5", "3&3.5","4&4.5", "5&5.5", ">=6"))) %>%
+  filter(!(Diff_dec_idx == "skip -1 to 1")) %>%
+  mutate(earning = if_else( (Total_2H-OU2H)*(Diff)>0, 95, if_else(Total_2H==OU2H, 0, -100) ) )
+
+df2 <- df %>%  group_by(Diff_dec_idx) %>% summarise(profit = sum(earning)) %>%
+  mutate( Gain = if_else(profit>0, "+", "-"))
+
+ggplot(df2, aes(x=Diff_dec_idx, y = profit, fill = Gain)) +
+  geom_bar(stat='identity') +
+  xlab("Score Difference") +
+  ylab("Profit ($)") + 
+  geom_text(aes(label = paste(profit), vjust=if_else(profit>0,-0.5,1))) +
+  ggtitle("Placing Bet On Over OU2H if Score Difference is Positive, and Vice Versa")
+```
+
+Bet under for all games
+
+```{r}
+df <- tidy %>% 
+  select(OUOpen, OUClose, Total, OU2H, Total_2H) %>%
+  mutate(Diff = OUClose-OUOpen) %>% 
+  mutate(Diff_dec_idx = 
+           cut(Diff,
+               breaks = c(-Inf, -4.9, -3.9, -2.9, -1.9, -0.9, -0.49, 0.49, 0.9, 1.9, 2.9, 3.9, 4.9, Inf), 
+               labels = c("-5","-4","-3", "-2", "-1", "-0.5", "0", "0.5", "1", "2","3", "4", "5"))) %>%
+  filter(!(Diff_dec_idx == "skip -1 to 1")) %>%
+  mutate(earning = if_else( (Total_2H-OU2H)<0, 95, if_else(Total_2H==OU2H, 0, -100) ) )
+
+df2 <- df %>%  group_by(Diff_dec_idx) %>% summarise(profit = sum(earning)) %>% filter(as.numeric(Diff_dec_idx)>0)
+
+ggplot(df2, aes(x=Diff_dec_idx, y = profit)) +
+  geom_bar(stat='identity') +
+  xlab("Score Difference") +
+  ylab("Profit ($)") + 
+  ggtitle("Placing Bet On Under OU2H for All Games")
+```
+
+
+```{r}
+df <- tidy %>% select(OU2H, Total_2H)
+
+
+```
+
+chunk 5 caclulate the cumulative profits. For example, bet for difference greater than 4 include 4 and 5+.
+
+clevland dot plot for betting singe team win for 10 years
+
+
+
+```{r}
+df <- tidy %>% 
+  select(V, H, VF, HF, VMoney, HMoney) %>%
+  mutate(Bet_V_win = if_else(VF>HF, if_else(VMoney>0, VMoney, -100/VMoney*100), if_else(VF<HF, -100, 0))) %>%
+  mutate(Bet_H_win = if_else(VF<HF, if_else(HMoney>0, HMoney, -100/HMoney*100), if_else(VF>HF, -100, 0)))
+
+df_V <- df %>%
+  group_by(V) %>% summarise_at("Bet_V_win", sum) %>%
+  rename(Team = V)
+
+df_H <- df %>%
+  group_by(H) %>% summarise_at("Bet_H_win", sum) %>%
+  rename(Team = H)
+
+df_Team <- df_V %>% 
+  inner_join(df_H) %>%
+  mutate(profit = Bet_V_win + Bet_H_win)
+
+ggplot(df_Team, aes(x= profit, y= fct_reorder(Team, profit))) +
+  geom_point() +
+  labs(x="Betting Profit", y="NBA Team") +
+  ggtitle("Cleveland Dot Plot of Net Profit by Betting on Same Team")
+```
+
+
+
+```{r}
+df <- tidy %>% select(Total, Total_2H, OU2H, OUClose)
+
+ggplot(df, aes(x=Total_2H, y= OU2H)) +
+  geom_point(alpha = 0.1) +
+  geom_abline(color = "red")
+
+ggplot(df, aes(x = seq(1, length(tidy$Total)),y = (Total-Total_2H)/Total_2H)) +
+  geom_point(alpha = 0.1) +
+  ggtitle("1st Half Score and 2nd Hlaf Score Ratio") +
+  scale_x_continuous("Game Index", breaks = c(0, 2500, 5000, 7500, 10000, 12500), labels = c("0", "2500", "5000", "7500", "10000", "12500")) +
+  ylab("1st Half Score/2nd Half Score") +
+  geom_smooth(se = FALSE) + #using method = 'loess'
+  geom_smooth(method = lm, se = FALSE, color = "red") 
+
+ggplot(df, aes(x=(Total-Total_2H)/Total_2H, y=(OUClose-OU2H)/OU2H)) +
+  geom_point(alpha = 0.05) +
+  ggtitle("House 1st/2nd Score Ratio vs Actual 1st/2nd Game Score Ratio") +
+  xlab("Actual 1st/2nd Score") +
+  ylab("House 1st/2nd Score") +
+  geom_hline(yintercept=1, color = "red", alpha = 0.5) +
+  geom_vline(xintercept=1, color = "red", alpha = 0.5)
+
+df <- tidy %>% 
+  select(Total, Total_2H) %>%
+  mutate(Total_1H = Total - Total_2H) %>%
+  mutate(index = if_else(Total_1H>Total_2H, "Positve", if_else(Total_1H==Total_2H, "equal", "Negative")))
+
+ggplot(df, aes(x=index, y=..count..)) + 
+  geom_bar() +
+  ggtitle("Counts for 1st and 2nd game score comparsion (acutal)")
+
+df <- tidy %>% 
+  select(OUClose, OU2H) %>%
+  mutate(OU1H = OUClose - OU2H) %>%
+  mutate(index = if_else(OU1H>OU2H, "Positve", if_else(OU1H==OU2H, "equal", "Negative")))
+
+ggplot(df, aes(x=index, y=..count..)) + 
+  geom_bar() +
+  ggtitle("Counts for 1st and 2nd game score comparsion (OUClose, OU2H)")
+```

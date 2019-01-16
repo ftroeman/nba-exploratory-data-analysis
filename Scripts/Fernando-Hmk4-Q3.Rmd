@@ -1,0 +1,103 @@
+---
+title: "Homework 4 Question 3"
+author: "Fernando Troeman (ft2515)"
+date: "11/13/2018"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+For our final project, my group is doing an analysis of betting odds and results for a total 14,186 NBA games starting from the 2007/08 season up to the end of the 2017/18 season. We have variables that include the teams playing in each game, the scores in each game, and various betting lines or types in each game (e.g. Point Spreads, Money Line, Over/Under, etc.).
+
+The main variables that we will analyze here are the point spreads for teams in the NBA.
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(plyr)
+```
+
+
+```{r}
+odds <- read.table('../Data/tidy.csv', header=TRUE, sep=',')
+```
+
+```{r}
+head(odds)
+```
+
+Spreads are defined as the minimum number of points one team has to win by, or maximum number of points one team can lose by, for a bettor to win his or her bet. In any given match-up, the team with a negative spread is favored to win, while the team with a positive spread is the underdog. To give an example, a spread of -5 means that bets on the favorite will only win if the team wins by 5 or more points. Conversely, bets on the underdog will pay out as long as the underdog wins or loses by less than 5 points. Spreads at the open are typically listed 24 hours before a game, while closing spreads are logged when all new bets are refused, usually up to 30 minutes before each game.
+
+Let us first consider point spreads for the Home team in NBA match-ups. In most, if not all, sports, there is an often-touted phenomenon known as the home-court advantage, which essentially asserts that the Home team has an advantage over Visiting teams. There is indeed statistical evidence and studies which show that teams playing at home emerge victorious (sometimes significantly) more than 50% of the time across all major sports. (The exact reasons for this is unknown, although some attribute it to familiarity of the arena, motivation, fan support, preferential treatment from referees at home, etc.)
+
+With the data we have at hand, we can see if bookmakers agree.
+
+```{r}
+ggplot(odds, aes(x=HSpreadOpen)) +
+  geom_histogram(binwidth=1, fill='orange', color='black') +
+  labs(y="Count", x="Home Team Spread at Open", title="Histogram of Point Spreads (Open) for Home Team in NBA Games")
+```
+
+Indeed, the histogram above shows that the spread for teams playing at home tend to be less than 0 most of the time. This means that bookmakers' odds favor the home team for quite a significant majority of matchups - bookmakers believe in the home-court advantage. Moving forward, we can use our dataset to observe or even verify this 'advantage' ourselves. We can also attempt to detect inefficiencies within the system. For instance, are bookmakers attaching greater implied winning probabilities to home teams than is justified? Do Home teams actually win a lot less than bookmakers think? 
+
+Also, notice that there is a non-zero number of games with teams having 0 spread. This means that there are games where both teams are seen to be almost equally matched.
+
+```{r}
+ggplot(odds, aes(x=HSpreadClose)) +
+  geom_histogram(binwidth=1, fill='lightblue', color='black') +
+  labs(y="Count", x="Home Team Spread at Close", title="Histogram of Point Spreads (Close) for Home Team in NBA Games")
+```
+
+A visualization of the spreads at the close does not conflict with our previous observations. We also gained another interesting insight from this histogram - there are a lot more spreads hovering close to or at 1 at the open than at the close. This might be an illustration of the willingness of bettors to take up odds that bookmakers consider a toss-up.
+
+Next, we will conduct an analyses on the difference between spreads at the close and the open. To do this, we create new columns that contain the computed spread changes.
+
+```{r}
+odds$VSpreadChange <- odds$VSpreadClose - odds$VSpreadOpen
+odds$HSpreadChange <- odds$HSpreadClose - odds$HSpreadOpen
+```
+
+```{r}
+odds_melt <- melt(odds, id.vars="Index", measure.vars=c("HSpreadChange", "VSpreadChange"))
+odds_melt$variable <- revalue(odds_melt$variable, c("HSpreadChange"="Home", "VSpreadChange"="Visiting"))
+```
+
+
+```{r}
+ggplot(odds_melt, aes(x=variable, y=value)) +
+  geom_boxplot() +
+  labs(x="Team", y="Spread", title="Change in Point Spread from Open to Close")
+```
+
+Above are box plots that show the various point spread changes for both Home and Visiting teams for all NBA games in our data set. 
+
+Spreads could change in the 24 hours prior to a game for many reasons. Mainly, changes in spreads reflect the flow of bets towards/against a team. If there are numerous bets for an overwhelming favorite, the bookmaker has to increase the spread in order to maintain their risk exposure, and bettors betting on the favorite will only win if the team wins by a greater margin. This makes the bet less 'attractive' and encourages bettors to take the other side. The difference between opening and closing spreads is an interesting variable to analyze.
+
+One thing that we notice is that a boxplot for just the Home or Visiting team alone is sufficient, as the other boxplot is just a flipped reflection of the other. This makes logical sense, as a -10 spread for the favorite would mean a spread of 10 for the underdog. Both plots were plotted side-by-side to prove and further emphasize this. 
+
+We also see that there is a good number of outliers in the value of spreads. The biggest change in spread was 12.5 for a 2017 match-up between the Cleveland Cavaliers and the Los Angeles Clippers, when Cavaliers head coach Tyronn Lue announced 80 minutes prior to tip-off that he would sit out all 3 of his superstars - Kyrie Irving, Kevin Love and LeBron James.
+
+
+```{r}
+ggplot(odds_melt, aes(x=variable, y=value)) +
+  geom_boxplot() +
+  labs(x="Team", y="Spread", title="Change in Point Spread from Open to Close") +
+  coord_cartesian(ylim=c(quantile(odds_melt$value, 0.01), quantile(odds_melt$value, 0.99)))
+```
+
+Zooming in, we get a closer look at the distribution of spread changes. Half of all spread changes from the open to close have a magnitude between -0.5 and 0.5. The median change in spread is 0. This shows that bookmakers are generally confident about the betting odds they offer at the open. It could also very well imply that there are seldom events that significantly impact the odds within the 24 hours prior to an NBA game.
+
+Given the boxplots, it might seem reasonable to assume that spread changes could follow a normal distribution. Our third visualization could then be to test this assumption by plotting a Q-Q plot.
+
+```{r}
+ggplot(odds, aes(sample=HSpreadChange)) +
+  geom_qq() +
+  stat_qq_line(distribution=qnorm) +
+  labs(title='QQ Plot for Point Spread Changes', x='Theoretical', y='Spread Changes')
+```
+
+The spread changes in the middle portion of our Q-Q plot does indeed follow a straight line. However, they curve off at the extreme end on both sides. This means that our data on spread changes contain more extreme values than would be expected if it truly followed a normal distribution. Our assumption is thus proven to be flawed.
+
+The above visualizations provided a lot of interesting insights that we can explore in the final project. For instance, we can analyze if changes in point spreads prior to a game serves as sort of a signal to the game's outcome. For instance, if odds began to shift heavily in one team's favor after the open, does that team win the matchup more often than not? Could changes in bookmakers' odds tell us something about how each game is likely to play out?
+
+

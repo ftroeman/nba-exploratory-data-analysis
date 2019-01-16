@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Final Project</title>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+  <style>
+    body {
+      font-family: "Times New Roman", Times, serif;
+    }
+    .axis { font: 14px sans-serif;
+            font-family: "Times New Roman", Times, serif; }
+
+    .line {
+      fill: none;
+      stroke: rgb(105,105,105);
+      stroke-width: 1px;
+    }
+
+    #selections {
+      margin-top: 25px;
+    }
+
+    .areapos {
+      fill: rgba(0,255,0,0.3);
+      stroke-width: 0;
+    }
+
+    .areaneg {
+      fill: rgba(255,0,0,0.3);
+      stroke-width: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1 align="center">Find Your Own Betting System!</h1>
+  <div id="selections" align="center"> 
+    <select name="Team" id="SelectedTeam">
+      <option value="Atlanta">Atlanta Hawks</option>
+      <option value="Boston">Boston Celtics</option>
+      <option value="Brooklyn">Brooklyn Nets</option>
+      <option value="Charlotte">Charlotte Hornets</option>
+      <option value="Chicago">Chicago Bulls</option>
+      <option value="Cleveland">Cleveland Cavaliers</option>
+      <option value="Dallas">Dallas Mavericks</option>
+      <option value="Denver">Denver Nuggets</option>
+      <option value="Detroit">Detroit Pistons</option>
+      <option value="GoldenState"'>Golden State Warriors</option>
+      <option value="Houston">Houston Rockets</option>
+      <option value="Indiana">Indiana Pacers</option>
+      <option value="LAClippers">Los Angeles Clippers</option>
+      <option value="LALakers" selected="selected">Los Angeles Lakers</option>
+      <option value="Memphis">Memphis Grizzlies</option>
+      <option value="Miami">Miami Heat</option>
+      <option value="Milwaukee">Milwaukee Bucks</option>
+      <option value="Minnesota">Minnesota Timberwolves</option>
+      <option value="NewOrleans">New Orleans Pelicans</option>
+      <option value="NewYork">New York Knicks</option>
+      <option value="OklahomaCity">Oklahoma City Thunder</option>
+      <option value="Orlando">Orlando Magic</option>
+      <option value="Philadelphia">Philadelphia 76ers</option>
+      <option value="Phoenix">Phoenix Suns</option>
+      <option value="Portland">Portland Trail Blazers</option>
+      <option value="Sacramento">Sacremento Kings</option>
+      <option value="SanAntonio">San Antonio Spurs</option>
+      <option value="Toronto">Toronto Raptors</option>
+      <option value="Utah">Utah Jazz</option>
+      <option value="Washington">Washington Wizards</option>
+    </select>
+    <select name="Bet" id="SelectedBet">
+      <option value="ML" selected="selected">Money Line</option>
+      <option value="SpreadOpen">Spread (Open)</option>
+      <option value="SpreadClose">Spread (Close)</option>
+      <option value="OverOpen">Over (Open)</option>
+      <option value="OverClose">Over (Close)</option>
+      <option value="UnderOpen">Under (Open)</option>
+      <option value="UnderClose">Under (Close)</option>
+      <option value="Spread2H">Spread 2H</option>
+      <option value="Over2H">Over 2H</option>
+      <option value="Under2H">Under 2H</option>
+    </select>
+  </div>
+  <h2 align="center">Placing a $100 Bet on Every Game by Team and Wager</h2>
+  <div id="chart" align="center">
+  </div>
+  <div id="result" align="center">
+  </div>
+	<script>
+		var margin = {top: 20, right: 50, bottom:100, left: 85}
+		var width = 800 - margin.left - margin.right
+		var height = 600 - margin.top - margin.bottom
+
+		var parseDate = d3.timeParse("%Y-%m-%d");
+		
+		var x = d3.scaleTime().range([0, width]);
+		var y = d3.scaleLinear().range([height, 0]);
+
+    function main(file, bet) {
+      var svg = d3.select("#chart").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+  		d3.csv(file, function(error, data) {
+  			data.forEach(function(d) {
+  				d.Date = parseDate(d.Date);
+          switch (bet) {
+            case "ML":
+              d.Value = +d.MLProfit;
+              break;
+            case "SpreadOpen":
+              d.Value = +d.SpreadOpenProfit;
+              break;
+            case "SpreadClose":
+              d.Value = +d.SpreadCloseProfit;
+              break;
+            case "OverOpen":
+              d.Value = +d.OverOpenProfit;
+              break;
+            case "UnderOpen":
+              d.Value = +d.UnderOpenProfit;
+              break;
+            case "OverClose":
+              d.Value = +d.OverCloseProfit;
+              break;
+            case "UnderClose":
+              d.Value = +d.UnderCloseProfit;
+              break;
+            case "Spread2H":
+              d.Value = +d.Spread2HProfit;
+              break;
+            case "Over2H":
+              d.Value = +d.Over2HProfit;
+              break;
+            case "Under2H":
+              d.Value = +d.Under2HProfit;
+          }
+  			});
+
+        var areapos = d3.area()
+          .x(function(d) { return x(d.Date); })
+          .y0(function(d) { if(d3.min(data, function(d) { return d.Value; }) > 0){
+            return y(d3.min(data, function(d) { return d.Value; }))
+          } else {
+            return y(0)};
+          })
+          .y1(function(d) { if(d.Value > 0){
+            return y(d.Value)
+          }else{
+            return y(0)}; 
+          });
+
+        var areaneg = d3.area()
+          .x(function(d) { return x(d.Date); })
+          .y0(function(d) { if(d3.max(data, function(d) { return d.Value; }) < 0){
+            return y(d3.max(data, function(d) { return d.Value; }))
+          } else {
+            return y(0)};
+          })
+          .y1(function(d) { if(d.Value < 0){
+            return y(d.Value)
+          }else{
+            return y(0)}; 
+          });
+
+        var mainline = d3.line()
+          .x(function(d) {return x(d.Date);})
+          .y(function(d) {return y(d.Value);})
+
+  			x.domain(d3.extent(data, function(d) {return d.Date; }));
+  			y.domain([d3.min(data, function(d) { return d.Value; }), d3.max(data, function(d) { return d.Value; })]);
+
+        var lastgame = [];
+        for (var key in data[data.length-1]){
+          if (key != "Name"){
+            lastgame.push({
+              name: key,
+              value: +data[data.length-1][key]
+            })
+          }
+        };
+        var profit = lastgame[24].value;
+
+        svg.append("path")
+          .data([data])
+          .attr("class", "areapos")
+          .attr("d", areapos);
+
+        svg.append("path")
+          .data([data])
+          .attr("class", "areaneg")
+          .attr("d", areaneg);
+
+  			svg.append("path")
+  				.data([data])
+  				.attr("class", "line")
+        	.attr("fill", "none")
+        	.attr("stroke", "red")
+        	.attr("shape-rendering", "crispedges")
+        	.attr("stroke-width", "1px")
+  				.attr("d", mainline)
+
+  			svg.append("g")
+  			    .attr("class", "axis")
+  			    .attr("transform", "translate(0," + height + ")")
+  			    .call(d3.axisBottom(x)
+  			            .tickFormat(d3.timeFormat("%Y")))
+
+  			svg.append("g")
+  			    .attr("class", "axis")
+  			    .call(d3.axisLeft(y));
+
+        var curtain = svg.append('rect')
+          .attr('x', -1 * width)
+          .attr('y', -1 * height)
+          .attr('height', height)
+          .attr('width', width - 1)
+          .attr('class', 'curtain')
+          .attr('transform', 'rotate(180)')
+          .style('fill', '#ffffff');
+
+        if (d3.max(data, function(d) { return d.Value; }) > 0 && d3.min(data, function(d) { return d.Value; }) < 0){
+          var threshold = svg.append('line')
+            .attr('stroke', 'black')
+            .style("stroke-dasharray", "4,4")
+            .attr('x1', 0)
+            .attr('y1', y(0))
+            .attr('x2', width)
+            .attr('y2', y(0))
+        }
+
+        svg.append("text")             
+            .attr("transform",
+                  "translate(" + (width/2) + " ," + 
+                                 (height + margin.top + 30) + ")")
+            .style("text-anchor", "middle")
+            .style("font-family", 'Times New Roman", Times, serif')
+            .text("Year");
+
+        svg.append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("dy", "1em")
+            .attr("y", 0 - margin.left)
+            .attr("x", 0 - (height / 2))
+            .style("font-family", '"Times New Roman", Times, serif')
+            .style("text-anchor", "middle")
+            .text("Profit/Loss ($)");   
+
+        var run = svg.transition()
+          .delay(750)
+          .duration(6000)
+          .ease(d3.easeLinear)
+          .on('end', function() {
+            d3.select('line.guide')
+              .style('opacity', 0)
+              .transition()
+              .remove()
+          });
+
+        run.select('rect.curtain')
+          .attr('width', 0);
+        run.select('line.guide')
+          .attr('transform', 'translate(' + width + ', 0)')
+
+        var teamselection = document.getElementById("SelectedTeam");
+        var teamname = teamselection.options[teamselection.selectedIndex].text;
+
+        var systemselection = document.getElementById("SelectedBet");
+        var systemname = systemselection.options[systemselection.selectedIndex].text;
+        
+        if (profit < 0){
+          if (systemselection.value == "ML" || systemselection.value == "SpreadOpen" || systemselection.value == "SpreadClose" || systemselection.value == "Spread2H"){
+            document.getElementById("result")
+              .innerHTML = "If you placed a <b>" + systemname + "</b> bet on the <b>" + teamname + "</b> in every game since the 2007-2008 season, you would have <b>lost $" + Math.abs(profit.toFixed(2)) + '</b>!';
+          } else {
+            document.getElementById("result")
+              .innerHTML = "If you placed an <b>" + systemname + "</b> bet on the <b>" + teamname + "</b> in every game since the 2007-2008 season, you would have <b>lost $" + Math.abs(profit.toFixed(2)) + '</b>!';
+          }
+        } else {
+          if (systemselection.value == "ML" || systemselection.value == "SpreadOpen" || systemselection.value == "SpreadClose" || systemselection.value == "Spread2H"){
+            document.getElementById("result")
+              .innerHTML = "If you placed a <b>" + systemname + "</b> bet on the <b>" + teamname + "</b> in every game since the 2007-2008 season, you would have <b>won $" + Math.abs(profit.toFixed(2)) + '</b>!';
+          } else {
+            document.getElementById("result")
+              .innerHTML = "If you placed an <b>" + systemname + "</b> bet on the <b>" + teamname + "</b> in every game since the 2007-2008 season, you would have <b>won $" + Math.abs(profit.toFixed(2)) + '</b>!';
+          }
+        }
+  		});
+    };
+
+    main("LALakers.csv", "ML");
+
+    d3.select('#SelectedTeam').on('change', function() {
+      selected = this.value;
+      betSelection = document.getElementById("SelectedBet").value;
+      d3.selectAll("svg").remove();
+      if(selected == "Atlanta"){main("Atlanta.csv", betSelection)}
+      else if(selected == "Boston"){main("Boston.csv", betSelection)}
+      else if(selected == "Brooklyn"){main("Brooklyn.csv", betSelection)}
+      else if(selected == "Charlotte"){main("Charlotte.csv", betSelection)}
+      else if(selected == "Chicago"){main("Cleveland.csv", betSelection)}
+      else if(selected == "Cleveland"){main("Cleveland.csv", betSelection)}
+      else if(selected == "Dallas"){main("Dallas.csv", betSelection)}
+      else if(selected == "Denver"){main("Denver.csv", betSelection)}
+      else if(selected == "Detroit"){main("Detroit.csv", betSelection)}
+      else if(selected == "GoldenState"){main("GoldenState.csv", betSelection)}
+      else if(selected == "Houston"){main("Houston.csv", betSelection)}
+      else if(selected == "Indiana"){main("Indiana.csv", betSelection)}
+      else if(selected == "LAClippers"){main("LAClippers.csv", betSelection)}
+      else if(selected == "LALakers"){main("LALakers.csv", betSelection)}
+      else if(selected == "Memphis"){main("Memphis.csv", betSelection)}
+      else if(selected == "Miami"){main("Miami.csv", betSelection)} 
+      else if(selected == "Milwaukee"){main("Milwaukee.csv", betSelection)}
+      else if(selected == "Minnesota"){main("Minnesota.csv", betSelection)}
+      else if(selected == "NewOrleans"){main("NewOrleans.csv", betSelection)}
+      else if(selected == "NewYork"){main("NewYork.csv", betSelection)}
+      else if(selected == "OklahomaCity"){main("OklahomaCity.csv", betSelection)} 
+      else if(selected == "Orlando"){main("Orlando.csv", betSelection)}
+      else if(selected == "Philadelphia"){main("Philadelphia.csv", betSelection)}
+      else if(selected == "Phoenix"){main("Phoenix.csv", betSelection)}
+      else if(selected == "Portland"){main("Portland.csv", betSelection)}
+      else if(selected == "Sacramento"){main("Sacramento.csv", betSelection)} 
+      else if(selected == "SanAntonio"){main("SanAntonio.csv", betSelection)}
+      else if(selected == "Toronto"){main("Toronto.csv", betSelection)}
+      else if(selected == "Utah"){main("Utah.csv", betSelection)}
+      else if(selected == "Washington"){main("Washington.csv", betSelection)} 
+    });
+
+    d3.select('#SelectedBet').on('change', function() {
+      selected = this.value;
+      file = document.getElementById("SelectedTeam").value + ".csv";
+      d3.selectAll("svg").remove();
+      if(selected == "ML"){main(file, selected)}
+      else if(selected == "SpreadOpen"){main(file, selected)}
+      else if(selected == "SpreadClose"){main(file, selected)}
+      else if(selected == "OverOpen"){main(file, selected)}
+      else if(selected == "OverClose"){main(file, selected)}
+      else if(selected == "UnderOpen"){main(file, selected)}
+      else if(selected == "UnderClose"){main(file, selected)}
+      else if(selected == "Spread2H"){main(file, selected)}
+      else if(selected == "Over2H"){main(file, selected)}
+      else if(selected == "Under2H"){main(file, selected)}
+    });
+
+	</script>
+</body>
+</html>
